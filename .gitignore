@@ -1,5 +1,6 @@
 # dependencies
 node_modules
+cms/node_modules
 .pnpm-store
 
 # next.js
@@ -44,3 +45,12 @@ next-env.d.ts
 # Testing
 coverage/
 .nyc_output/
+
+# CMS
+cms/dist/
+cms/uploads/
+cms/payload-types.ts
+
+# Docker
+.env
+*.log

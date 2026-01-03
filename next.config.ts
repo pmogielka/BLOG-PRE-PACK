@@ -8,6 +8,18 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
+      {
+        protocol: "http",
+        hostname: "localhost",
+      },
+      {
+        protocol: "http",
+        hostname: "cms.blog-pre-pack.localhost",
+      },
+      {
+        protocol: "https",
+        hostname: "cms.prepack.pl",
+      },
     ],
   },
 };
