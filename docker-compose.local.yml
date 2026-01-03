@@ -1,8 +1,8 @@
 services:
   # PostgreSQL Database
-  prepack-postgres:
+  blog-pre-pack-postgres:
     image: postgres:16-alpine
-    container_name: prepack-postgres
+    container_name: blog-pre-pack-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-prepack}
@@ -11,10 +11,10 @@ services:
     ports:
       - "5438:5432"
     volumes:
-      - prepack-postgres-data:/var/lib/postgresql/data
+      - blog-pre-pack-postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
-      - prepack-network
+      - blog-pre-pack-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prepack}"]
       interval: 10s
@@ -22,17 +22,17 @@ services:
       retries: 5
 
   # Redis Cache
-  prepack-redis:
+  blog-pre-pack-redis:
     image: redis:7-alpine
-    container_name: prepack-redis
+    container_name: blog-pre-pack-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
       - "6385:6379"
     volumes:
-      - prepack-redis-data:/data
+      - blog-pre-pack-redis-data:/data
     networks:
-      - prepack-network
+      - blog-pre-pack-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -40,38 +40,38 @@ services:
       retries: 5
 
   # Payload CMS
-  prepack-cms:
+  cms-blog-pre-pack:
     build:
       context: ./cms
       dockerfile: ../Dockerfile.cms
-    image: prepack-cms:local
-    container_name: prepack-cms
+    image: cms.blog-pre-pack:local
+    container_name: cms.blog-pre-pack
     restart: unless-stopped
     depends_on:
-      prepack-postgres:
+      blog-pre-pack-postgres:
         condition: service_healthy
-      prepack-redis:
+      blog-pre-pack-redis:
         condition: service_healthy
     environment:
       - NODE_ENV=production
       - PAYLOAD_SECRET=${PAYLOAD_SECRET:-prepack-local-secret-key-min-32-characters}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-prepack}:${POSTGRES_PASSWORD:-prepack_secret}@prepack-postgres:5432/${POSTGRES_DB:-prepack_cms}
-      - REDIS_URL=redis://prepack-redis:6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-prepack}:${POSTGRES_PASSWORD:-prepack_secret}@blog-pre-pack-postgres:5432/${POSTGRES_DB:-prepack_cms}
+      - REDIS_URL=redis://blog-pre-pack-redis:6379
       - PAYLOAD_PUBLIC_SERVER_URL=http://localhost:3013
       - CORS_ORIGINS=http://localhost:3012,http://localhost:3013
     ports:
       - "3013:3000"
     volumes:
-      - prepack-cms-uploads:/app/uploads
+      - blog-pre-pack-cms-uploads:/app/uploads
     networks:
-      - prepack-network
+      - blog-pre-pack-network
       - traefik-public
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.prepack-cms.rule=Host(`cms.blog-pre-pack.localhost`)
-      - traefik.http.routers.prepack-cms.entrypoints=web
-      - traefik.http.services.prepack-cms.loadbalancer.server.port=3000
+      - traefik.http.routers.cms-blog-pre-pack.rule=Host(`cms.blog-pre-pack.localhost`)
+      - traefik.http.routers.cms-blog-pre-pack.entrypoints=web
+      - traefik.http.services.cms-blog-pre-pack.loadbalancer.server.port=3000
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
@@ -80,33 +80,33 @@ services:
       start_period: 40s
 
   # Next.js Web Frontend
-  prepack-web:
+  blog-pre-pack:
     build:
       context: .
       dockerfile: Dockerfile.web
       args:
         - NEXT_PUBLIC_CMS_URL=http://localhost:3013
-    image: prepack-web:local
-    container_name: prepack-web
+    image: blog-pre-pack:local
+    container_name: blog-pre-pack
     restart: unless-stopped
     depends_on:
-      prepack-cms:
+      cms-blog-pre-pack:
         condition: service_healthy
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_CMS_URL=http://localhost:3013
-      - CMS_INTERNAL_URL=http://prepack-cms:3000
+      - CMS_INTERNAL_URL=http://cms.blog-pre-pack:3000
     ports:
       - "3012:3000"
     networks:
-      - prepack-network
+      - blog-pre-pack-network
       - traefik-public
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.prepack-web.rule=Host(`blog-pre-pack.localhost`)
-      - traefik.http.routers.prepack-web.entrypoints=web
-      - traefik.http.services.prepack-web.loadbalancer.server.port=3000
+      - traefik.http.routers.blog-pre-pack.rule=Host(`blog-pre-pack.localhost`)
+      - traefik.http.routers.blog-pre-pack.entrypoints=web
+      - traefik.http.services.blog-pre-pack.loadbalancer.server.port=3000
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 30s
@@ -115,14 +115,14 @@ services:
       start_period: 40s
 
   # n8n Workflow Automation
-  prepack-n8n:
+  blog-pre-pack-n8n:
     image: n8nio/n8n:latest
-    container_name: prepack-n8n
+    container_name: blog-pre-pack-n8n
     restart: unless-stopped
     depends_on:
-      prepack-postgres:
+      blog-pre-pack-postgres:
         condition: service_healthy
-      prepack-redis:
+      blog-pre-pack-redis:
         condition: service_healthy
     environment:
       - N8N_HOST=localhost
@@ -130,7 +130,7 @@ services:
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5684/
       - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=prepack-postgres
+      - DB_POSTGRESDB_HOST=blog-pre-pack-postgres
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=${N8N_DB:-prepack_n8n}
       - DB_POSTGRESDB_USER=${POSTGRES_USER:-prepack}
@@ -141,30 +141,30 @@ services:
     ports:
       - "5684:5678"
     volumes:
-      - prepack-n8n-data:/home/node/.n8n
+      - blog-pre-pack-n8n-data:/home/node/.n8n
     networks:
-      - prepack-network
+      - blog-pre-pack-network
       - traefik-public
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.prepack-n8n.rule=Host(`n8n.blog-pre-pack.localhost`)
-      - traefik.http.routers.prepack-n8n.entrypoints=web
-      - traefik.http.services.prepack-n8n.loadbalancer.server.port=5678
+      - traefik.http.routers.blog-pre-pack-n8n.rule=Host(`n8n.blog-pre-pack.localhost`)
+      - traefik.http.routers.blog-pre-pack-n8n.entrypoints=web
+      - traefik.http.services.blog-pre-pack-n8n.loadbalancer.server.port=5678
 
 networks:
-  prepack-network:
-    name: prepack-network
+  blog-pre-pack-network:
+    name: blog-pre-pack-network
     driver: bridge
   traefik-public:
     external: true
 
 volumes:
-  prepack-postgres-data:
-    name: prepack-postgres-data
-  prepack-redis-data:
-    name: prepack-redis-data
-  prepack-cms-uploads:
-    name: prepack-cms-uploads
-  prepack-n8n-data:
-    name: prepack-n8n-data
+  blog-pre-pack-postgres-data:
+    name: blog-pre-pack-postgres-data
+  blog-pre-pack-redis-data:
+    name: blog-pre-pack-redis-data
+  blog-pre-pack-cms-uploads:
+    name: blog-pre-pack-cms-uploads
+  blog-pre-pack-n8n-data:
+    name: blog-pre-pack-n8n-data
