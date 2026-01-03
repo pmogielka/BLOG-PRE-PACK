@@ -31,9 +31,13 @@ yarn-error.log*
 .env.production.local
 
 # Docker
-Dockerfile
-docker-compose.yml
+Dockerfile*
+docker-compose*.yml
 .dockerignore
+docker/
+
+# CMS (separate build)
+cms/
 
 # Documentation
 README.md

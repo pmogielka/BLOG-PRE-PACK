@@ -1,25 +1,4 @@
 services:
-  # Traefik Reverse Proxy
-  prepack-traefik:
-    image: traefik:v3.0
-    container_name: prepack-traefik
-    restart: unless-stopped
-    command:
-      - --api.dashboard=true
-      - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=prepack-network
-      - --entrypoints.web.address=:80
-      - --log.level=INFO
-    ports:
-      - "80:80"
-      - "8080:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - prepack-network
-
   # PostgreSQL Database
   prepack-postgres:
     image: postgres:16-alpine
@@ -63,8 +42,8 @@ services:
   # Payload CMS
   prepack-cms:
     build:
-      context: .
-      dockerfile: Dockerfile.cms
+      context: ./cms
+      dockerfile: ../Dockerfile.cms
     image: prepack-cms:local
     container_name: prepack-cms
     restart: unless-stopped
@@ -78,16 +57,18 @@ services:
       - PAYLOAD_SECRET=${PAYLOAD_SECRET:-prepack-local-secret-key-min-32-characters}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-prepack}:${POSTGRES_PASSWORD:-prepack_secret}@prepack-postgres:5432/${POSTGRES_DB:-prepack_cms}
       - REDIS_URL=redis://prepack-redis:6379
-      - PAYLOAD_PUBLIC_SERVER_URL=http://cms.blog-pre-pack.localhost
-      - CORS_ORIGINS=http://blog-pre-pack.localhost,http://localhost:3012
+      - PAYLOAD_PUBLIC_SERVER_URL=http://localhost:3013
+      - CORS_ORIGINS=http://localhost:3012,http://localhost:3013
     ports:
       - "3013:3000"
     volumes:
       - prepack-cms-uploads:/app/uploads
     networks:
       - prepack-network
+      - traefik-public
     labels:
       - traefik.enable=true
+      - traefik.docker.network=traefik-public
       - traefik.http.routers.prepack-cms.rule=Host(`cms.blog-pre-pack.localhost`)
       - traefik.http.routers.prepack-cms.entrypoints=web
       - traefik.http.services.prepack-cms.loadbalancer.server.port=3000
@@ -104,7 +85,7 @@ services:
       context: .
       dockerfile: Dockerfile.web
       args:
-        - NEXT_PUBLIC_CMS_URL=http://cms.blog-pre-pack.localhost
+        - NEXT_PUBLIC_CMS_URL=http://localhost:3013
     image: prepack-web:local
     container_name: prepack-web
     restart: unless-stopped
@@ -113,14 +94,16 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_CMS_URL=http://cms.blog-pre-pack.localhost
+      - NEXT_PUBLIC_CMS_URL=http://localhost:3013
       - CMS_INTERNAL_URL=http://prepack-cms:3000
     ports:
       - "3012:3000"
     networks:
       - prepack-network
+      - traefik-public
     labels:
       - traefik.enable=true
+      - traefik.docker.network=traefik-public
       - traefik.http.routers.prepack-web.rule=Host(`blog-pre-pack.localhost`)
       - traefik.http.routers.prepack-web.entrypoints=web
       - traefik.http.services.prepack-web.loadbalancer.server.port=3000
@@ -142,10 +125,10 @@ services:
       prepack-redis:
         condition: service_healthy
     environment:
-      - N8N_HOST=n8n.blog-pre-pack.localhost
+      - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://n8n.blog-pre-pack.localhost/
+      - WEBHOOK_URL=http://localhost:5684/
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=prepack-postgres
       - DB_POSTGRESDB_PORT=5432
@@ -161,8 +144,10 @@ services:
       - prepack-n8n-data:/home/node/.n8n
     networks:
       - prepack-network
+      - traefik-public
     labels:
       - traefik.enable=true
+      - traefik.docker.network=traefik-public
       - traefik.http.routers.prepack-n8n.rule=Host(`n8n.blog-pre-pack.localhost`)
       - traefik.http.routers.prepack-n8n.entrypoints=web
       - traefik.http.services.prepack-n8n.loadbalancer.server.port=5678
@@ -171,6 +156,8 @@ networks:
   prepack-network:
     name: prepack-network
     driver: bridge
+  traefik-public:
+    external: true
 
 volumes:
   prepack-postgres-data:
