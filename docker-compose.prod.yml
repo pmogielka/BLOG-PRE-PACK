@@ -46,8 +46,8 @@ services:
   # Payload CMS
   prepack-cms:
     build:
-      context: .
-      dockerfile: Dockerfile.cms
+      context: ./cms
+      dockerfile: ../Dockerfile.cms
     image: prepack-cms:latest
     container_name: prepack-cms
     restart: always
@@ -61,24 +61,30 @@ services:
       - PAYLOAD_SECRET=${PAYLOAD_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@prepack-postgres:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@prepack-redis:6379
-      - PAYLOAD_PUBLIC_SERVER_URL=https://cms.prepack.pl
-      - CORS_ORIGINS=https://prepack.pl,https://www.prepack.pl
+      - PAYLOAD_PUBLIC_SERVER_URL=https://cms.upadloscprepack.pl
+      - CORS_ORIGINS=https://upadloscprepack.pl,https://www.upadloscprepack.pl
     expose:
       - "3000"
-    ports:
-      - "0.0.0.0:3013:3000"
     volumes:
       - prepack-cms-uploads:/app/uploads
     networks:
       - prepack-internal
       - traefik-public
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.prepack-cms.rule=Host(`cms.prepack.pl`)
+      - traefik.http.routers.prepack-cms.rule=Host(`cms.upadloscprepack.pl`)
       - traefik.http.routers.prepack-cms.entrypoints=websecure
       - traefik.http.routers.prepack-cms.tls=true
       - traefik.http.routers.prepack-cms.tls.certresolver=letsencrypt
+      - traefik.http.routers.prepack-cms.middlewares=blog-pp-security@file
       - traefik.http.services.prepack-cms.loadbalancer.server.port=3000
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
@@ -93,7 +99,7 @@ services:
       context: .
       dockerfile: Dockerfile.web
       args:
-        - NEXT_PUBLIC_CMS_URL=https://cms.prepack.pl
+        - NEXT_PUBLIC_CMS_URL=https://cms.upadloscprepack.pl
     image: prepack-web:latest
     container_name: prepack-web
     restart: always
@@ -102,28 +108,33 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_CMS_URL=https://cms.prepack.pl
+      - NEXT_PUBLIC_CMS_URL=https://cms.upadloscprepack.pl
       - CMS_INTERNAL_URL=http://prepack-cms:3000
     expose:
       - "3000"
-    ports:
-      - "0.0.0.0:3012:3000"
     networks:
       - prepack-internal
       - traefik-public
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.prepack-web.rule=Host(`prepack.pl`) || Host(`www.prepack.pl`)
+      - traefik.http.routers.prepack-web.rule=Host(`upadloscprepack.pl`) || Host(`www.upadloscprepack.pl`)
       - traefik.http.routers.prepack-web.entrypoints=websecure
       - traefik.http.routers.prepack-web.tls=true
       - traefik.http.routers.prepack-web.tls.certresolver=letsencrypt
       - traefik.http.services.prepack-web.loadbalancer.server.port=3000
       # Redirect www to non-www
-      - traefik.http.middlewares.prepack-www-redirect.redirectregex.regex=^https://www\.prepack\.pl/(.*)
-      - traefik.http.middlewares.prepack-www-redirect.redirectregex.replacement=https://prepack.pl/$${1}
+      - traefik.http.middlewares.prepack-www-redirect.redirectregex.regex=^https://www\.upadloscprepack\.pl/(.*)
+      - traefik.http.middlewares.prepack-www-redirect.redirectregex.replacement=https://upadloscprepack.pl/$${1}
       - traefik.http.middlewares.prepack-www-redirect.redirectregex.permanent=true
-      - traefik.http.routers.prepack-web.middlewares=prepack-www-redirect
+      - traefik.http.routers.prepack-web.middlewares=prepack-www-redirect,blog-pp-security@file
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 30s
@@ -140,10 +151,10 @@ services:
       prepack-postgres:
         condition: service_healthy
     environment:
-      - N8N_HOST=n8n.prepack.pl
+      - N8N_HOST=n8n.upadloscprepack.pl
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
-      - WEBHOOK_URL=https://n8n.prepack.pl/
+      - WEBHOOK_URL=https://n8n.upadloscprepack.pl/
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=prepack-postgres
       - DB_POSTGRESDB_PORT=5432
@@ -166,10 +177,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.prepack-n8n.rule=Host(`n8n.prepack.pl`)
+      - traefik.http.routers.prepack-n8n.rule=Host(`n8n.upadloscprepack.pl`)
       - traefik.http.routers.prepack-n8n.entrypoints=websecure
       - traefik.http.routers.prepack-n8n.tls=true
       - traefik.http.routers.prepack-n8n.tls.certresolver=letsencrypt
+      - traefik.http.routers.prepack-n8n.middlewares=blog-pp-security@file
       - traefik.http.services.prepack-n8n.loadbalancer.server.port=5678
 
 networks:
